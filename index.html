@@ -1,1 +1,589 @@
-<script src="config.js"></script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Venue Tracker</title>
+  <script src="config.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f9f8f6;
+      --surface: #ffffff;
+      --surface2: #f3f2ef;
+      --border: rgba(0,0,0,0.1);
+      --border-mid: rgba(0,0,0,0.18);
+      --text: #1a1a1a;
+      --text2: #666;
+      --text3: #999;
+      --radius: 8px;
+      --radius-lg: 12px;
+      --teal: #0F6E56;
+      --teal-bg: #E1F5EE;
+      --teal-border: #5DCAA5;
+      --purple: #534AB7;
+      --purple-bg: #EEEDFE;
+      --purple-border: #AFA9EC;
+      --red: #A32D2D;
+      --red-bg: #FCEBEB;
+      --red-border: #F09595;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141414;
+        --surface: #1e1e1e;
+        --surface2: #252525;
+        --border: rgba(255,255,255,0.1);
+        --border-mid: rgba(255,255,255,0.18);
+        --text: #f0f0f0;
+        --text2: #aaa;
+        --text3: #666;
+      }
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── PASSWORD GATE ── */
+    #gate {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem;
+    }
+    .gate-card {
+      background: var(--surface); border: 0.5px solid var(--border-mid); border-radius: var(--radius-lg);
+      padding: 2rem; width: 100%; max-width: 340px; text-align: center;
+    }
+    .gate-card h1 { font-size: 18px; font-weight: 500; margin-bottom: 0.4rem; }
+    .gate-card p { font-size: 13px; color: var(--text2); margin-bottom: 1.5rem; }
+    .gate-card input {
+      width: 100%; font-size: 14px; padding: 9px 12px; border: 0.5px solid var(--border-mid);
+      border-radius: var(--radius); background: var(--surface2); color: var(--text);
+      text-align: center; letter-spacing: 0.1em; margin-bottom: 10px;
+    }
+    .gate-card input:focus { outline: none; border-color: var(--purple); }
+    .gate-card button {
+      width: 100%; font-size: 13px; padding: 9px; border: none; border-radius: var(--radius);
+      background: var(--purple); color: #fff; cursor: pointer; font-weight: 500;
+    }
+    .gate-card button:hover { opacity: 0.9; }
+    .gate-error { font-size: 12px; color: var(--red); margin-top: 8px; min-height: 18px; }
+
+    /* ── MAIN APP ── */
+    #app { display: none; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.25rem; }
+
+    .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 10px; }
+    .topbar-left { display: flex; align-items: center; gap: 10px; }
+    .title { font-size: 17px; font-weight: 500; }
+    .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
+    .dot-ok { background: #1D9E75; } .dot-err { background: #E24B4A; } .dot-loading { background: #EF9F27; }
+    .sync-text { font-size: 11px; color: var(--text3); }
+
+    .btn { font-size: 12px; padding: 5px 13px; border: 0.5px solid var(--border-mid); border-radius: var(--radius); background: transparent; color: var(--text); cursor: pointer; white-space: nowrap; }
+    .btn:hover { background: var(--surface2); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn.accent { background: var(--teal-bg); color: var(--teal); border-color: var(--teal-border); }
+    .btn.ai { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+    .btn.danger { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px,1fr)); gap: 10px; margin-bottom: 1.5rem; }
+    .stat { background: var(--surface2); border-radius: var(--radius); padding: 10px 14px; }
+    .stat .lbl { font-size: 11px; color: var(--text2); margin-bottom: 3px; }
+    .stat .val { font-size: 21px; font-weight: 500; }
+    .stat .sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.25rem; align-items: center; }
+    .filters input, .filters select { font-size: 12px; padding: 5px 10px; border: 0.5px solid var(--border-mid); border-radius: var(--radius); background: var(--surface); color: var(--text); }
+    .filters input { min-width: 150px; }
+
+    .section-hdr { display: flex; align-items: center; gap: 10px; margin: 1.5rem 0 0.6rem; }
+    .section-lbl { font-size: 11px; font-weight: 500; color: var(--text2); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+    .section-count { font-size: 11px; color: var(--text3); }
+    .section-line { flex: 1; height: 0.5px; background: var(--border); }
+
+    .tbl-wrap { border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow-x: auto; margin-bottom: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 820px; table-layout: fixed; }
+    thead { background: var(--surface2); }
+    th { padding: 8px 10px; text-align: left; font-weight: 500; font-size: 11px; color: var(--text2); border-bottom: 0.5px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    td { padding: 7px 10px; border-bottom: 0.5px solid var(--border); vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+
+    .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+    .s-Considering{background:#E6F1FB;color:#185FA5} .s-Shortlisted{background:#EEEDFE;color:#534AB7}
+    .s-Visited{background:#EAF3DE;color:#3B6D11} .s-Booked{background:#9FE1CB;color:#085041}
+    .s-Rejected{background:#F1EFE8;color:#5F5E5A}
+    .lodge-yes{background:#EAF3DE;color:#3B6D11} .lodge-no{background:#F1EFE8;color:#5F5E5A}
+
+    .icon-btn { background: none; border: none; cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px; color: var(--text3); }
+    .icon-btn:hover { background: var(--surface2); color: var(--text); }
+    .empty { text-align: center; padding: 2rem; color: var(--text3); font-size: 13px; }
+    .error-box { background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: var(--radius); padding: 10px 14px; font-size: 12px; color: var(--red); margin-bottom: 1rem; }
+
+    /* ── MODAL ── */
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: flex-start; justify-content: center; padding-top: 48px; overflow-y: auto; }
+    .modal-bg.open { display: flex; }
+    .modal { background: var(--surface); border: 0.5px solid var(--border-mid); border-radius: var(--radius-lg); padding: 1.5rem; width: 520px; max-width: 95vw; margin-bottom: 2rem; }
+    .modal-title { font-size: 14px; font-weight: 500; margin-bottom: 1.25rem; }
+    .step { display: none; }
+    .step.active { display: block; }
+
+    .step1-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1rem; }
+    .url-row { display: flex; gap: 8px; margin-bottom: 0.5rem; }
+    .url-row input { flex: 1; font-size: 12px; padding: 7px 10px; border: 0.5px solid var(--border-mid); border-radius: var(--radius); background: var(--surface); color: var(--text); }
+    .url-row input:focus { outline: none; border-color: var(--purple); }
+    .ai-status { font-size: 12px; color: var(--text2); padding: 6px 0; min-height: 28px; display: flex; align-items: center; gap: 6px; }
+    .spinner { width: 12px; height: 12px; border: 1.5px solid var(--border-mid); border-top-color: var(--purple); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label { font-size: 11px; color: var(--text2); display: flex; align-items: center; gap: 5px; }
+    .ai-tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--purple-bg); color: var(--purple); font-weight: 500; }
+    .form-group input, .form-group select, .form-group textarea { font-size: 12px; padding: 6px 8px; border: 0.5px solid var(--border-mid); border-radius: var(--radius); background: var(--surface); color: var(--text); font-family: inherit; }
+    .form-group input.ai-filled { border-color: var(--purple-border); background: #EEEDFE11; }
+    .form-group textarea { resize: vertical; height: 58px; line-height: 1.5; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--purple); }
+    .sel-group { display: flex; flex-direction: column; gap: 4px; }
+    .sel-group label { font-size: 11px; color: var(--text2); }
+    .sel-group select { font-size: 12px; padding: 6px 8px; border: 0.5px solid var(--border-mid); border-radius: var(--radius); background: var(--surface); color: var(--text); }
+
+    .modal-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 1.25rem; gap: 8px; }
+    .modal-footer-right { display: flex; gap: 8px; }
+    .venue-url-ref { font-size: 11px; color: var(--text3); margin-bottom: 1rem; word-break: break-all; }
+
+    /* ── TOAST ── */
+    .toast { position: fixed; bottom: 24px; right: 24px; font-size: 12px; padding: 9px 16px; border-radius: var(--radius); opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 999; font-weight: 500; }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<!-- PASSWORD GATE -->
+<div id="gate">
+  <div class="gate-card">
+    <h1>Venue Tracker</h1>
+    <p>Enter your password to continue</p>
+    <input type="password" id="pw-input" placeholder="Password" onkeydown="if(event.key==='Enter')checkPassword()">
+    <button onclick="checkPassword()">Enter</button>
+    <div class="gate-error" id="gate-error"></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="container">
+    <div class="topbar">
+      <div class="topbar-left">
+        <span class="title">Venue Tracker</span>
+        <span id="status-ind"><span class="status-dot dot-loading"></span><span class="sync-text">Connecting…</span></span>
+      </div>
+      <button class="btn" onclick="loadData()">Refresh</button>
+    </div>
+
+    <div id="error-area"></div>
+    <div class="summary" id="summary"></div>
+
+    <div class="filters">
+      <input type="text" id="search" placeholder="Search venues…" oninput="render()">
+      <select id="fStatus" onchange="render()">
+        <option value="">All statuses</option>
+        <option>Considering</option><option>Shortlisted</option><option>Visited</option><option>Booked</option><option>Rejected</option>
+      </select>
+      <select id="fLodging" onchange="render()">
+        <option value="">Any lodging</option>
+        <option value="Yes">On-site lodging</option>
+        <option value="No">No lodging</option>
+      </select>
+      <select id="fSort" onchange="render()">
+        <option value="venueName">Sort: Name</option>
+        <option value="capacity">Sort: Capacity</option>
+        <option value="projectedTotalCost">Sort: Total cost</option>
+        <option value="status">Sort: Status</option>
+      </select>
+    </div>
+
+    <div class="section-hdr">
+      <span class="section-lbl">Domestic</span>
+      <span class="section-count" id="count-d"></span>
+      <div class="section-line"></div>
+      <button class="btn accent" style="font-size:11px;padding:4px 10px" onclick="openAddModal('domestic')">+ Add</button>
+    </div>
+    <div class="tbl-wrap"><table><thead id="thead-d"></thead><tbody id="tbody-d"></tbody></table></div>
+
+    <div class="section-hdr">
+      <span class="section-lbl">International</span>
+      <span class="section-count" id="count-i"></span>
+      <div class="section-line"></div>
+      <button class="btn accent" style="font-size:11px;padding:4px 10px" onclick="openAddModal('international')">+ Add</button>
+    </div>
+    <div class="tbl-wrap"><table><thead id="thead-i"></thead><tbody id="tbody-i"></tbody></table></div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Add venue</div>
+
+    <!-- Step 1 -->
+    <div class="step active" id="step1">
+      <div class="step1-grid">
+        <div class="sel-group"><label>Section</label>
+          <select id="m-section"><option value="domestic">Domestic</option><option value="international">International</option></select>
+        </div>
+        <div class="sel-group"><label>Status</label>
+          <select id="m-status"><option>Considering</option><option>Shortlisted</option><option>Visited</option><option>Booked</option><option>Rejected</option></select>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Venue website URL</div>
+      <div class="url-row">
+        <input type="url" id="m-url" placeholder="https://www.venuename.com" onkeydown="if(event.key==='Enter')extractFromUrl()">
+        <button class="btn ai" id="extract-btn" onclick="extractFromUrl()">Extract with AI</button>
+      </div>
+      <div class="ai-status" id="ai-status"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn accent" onclick="skipToManual()">Fill manually</button>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step" id="step2">
+      <div class="venue-url-ref" id="venue-url-ref"></div>
+      <div class="form-grid">
+        <div class="form-group full"><label>Venue name * <span class="ai-tag" id="tag-venueName" style="display:none">AI filled</span></label><input id="f-venueName" placeholder="e.g. The Grand Estate"></div>
+        <div class="form-group"><label>Town / city <span class="ai-tag" id="tag-town" style="display:none">AI filled</span></label><input id="f-town" placeholder="e.g. Savannah"></div>
+        <div class="form-group"><label>Capacity <span class="ai-tag" id="tag-capacity" style="display:none">AI filled</span></label><input id="f-capacity" type="number" placeholder="e.g. 150"></div>
+        <div class="form-group"><label>Airport code <span class="ai-tag" id="tag-airportCode" style="display:none">AI filled</span></label><input id="f-airportCode" placeholder="e.g. ATL"></div>
+        <div class="form-group"><label>Distance from airport <span class="ai-tag" id="tag-distanceFromAirport" style="display:none">AI filled</span></label><input id="f-distanceFromAirport" placeholder="e.g. 25 mi"></div>
+        <div class="form-group"><label>On-site lodging <span class="ai-tag" id="tag-onSiteLodging" style="display:none">AI filled</span></label>
+          <select id="f-onSiteLodging" onchange="toggleLodgingInfo()"><option value="No">No</option><option value="Yes">Yes</option></select>
+        </div>
+        <div class="form-group" id="lodging-info-group" style="display:none"><label>Lodging info <span class="ai-tag" id="tag-lodgingInfo" style="display:none">AI filled</span></label><input id="f-lodgingInfo" placeholder="e.g. 20 rooms, $150/night"></div>
+        <div class="form-group"><label>Price / day ($) <span class="ai-tag" id="tag-pricePerDay" style="display:none">AI filled</span></label><input id="f-pricePerDay" type="number" placeholder="e.g. 5000"></div>
+        <div class="form-group"><label>Projected total ($) <span class="ai-tag" id="tag-projectedTotalCost" style="display:none">AI filled</span></label><input id="f-projectedTotalCost" type="number" placeholder="e.g. 18000"></div>
+        <div class="form-group full"><label>What's included <span class="ai-tag" id="tag-whatsIncluded" style="display:none">AI filled</span></label><textarea id="f-whatsIncluded" placeholder="e.g. Catering, AV, tables, chairs"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn danger" id="delete-btn" style="display:none" onclick="confirmDelete()">Delete venue</button>
+        <div class="modal-footer-right">
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn accent" id="save-btn" onclick="saveVenue()">Save to Sheet</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── PASSWORD ──────────────────────────────────────────
+function checkPassword() {
+  const val = document.getElementById('pw-input').value;
+  if (val === CONFIG.password) {
+    sessionStorage.setItem('vt_auth', 'true');
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadData();
+  } else {
+    document.getElementById('gate-error').textContent = 'Incorrect password.';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+  }
+}
+
+// Auto-unlock if already authenticated this session
+if (sessionStorage.getItem('vt_auth') === 'true') {
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+}
+
+// ── DATA ──────────────────────────────────────────────
+let allData = { domestic: [], international: [] };
+let modalMode = 'add';
+let editOriginalName = null;
+
+const COLS = [
+  {key:'venueName',label:'Venue name',w:'16%'},
+  {key:'town',label:'Town',w:'10%'},
+  {key:'capacity',label:'Capacity',w:'7%',align:'right'},
+  {key:'airportCode',label:'Airport',w:'7%'},
+  {key:'distanceFromAirport',label:'Dist.',w:'8%'},
+  {key:'onSiteLodging',label:'Lodging',w:'7%'},
+  {key:'pricePerDay',label:'Price/day',w:'9%',align:'right'},
+  {key:'projectedTotalCost',label:'Proj. total',w:'10%',align:'right'},
+  {key:'whatsIncluded',label:"What's included",w:'16%'},
+  {key:'status',label:'Status',w:'8%'},
+  {key:'_actions',label:'',w:'5%'},
+];
+
+async function loadData() {
+  setStatus('loading');
+  document.getElementById('error-area').innerHTML = '';
+  try {
+    const res = await fetch(CONFIG.workerUrl + '/sheets');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    allData = data;
+    setStatus('ok', data.lastUpdated);
+    render();
+  } catch(e) {
+    setStatus('err');
+    document.getElementById('error-area').innerHTML = `<div class="error-box">Could not connect: ${e.message}</div>`;
+    render();
+  }
+}
+
+async function postData(payload) {
+  const res = await fetch(CONFIG.workerUrl + '/sheets', { method:'POST', body:JSON.stringify(payload), headers:{'Content-Type':'application/json'} });
+  return await res.json();
+}
+
+function setStatus(state, ts) {
+  const el = document.getElementById('status-ind');
+  if (state==='ok') { const t=ts?new Date(ts).toLocaleTimeString():''; el.innerHTML=`<span class="status-dot dot-ok"></span><span class="sync-text">Live · ${t}</span>`; }
+  else if (state==='err') { el.innerHTML=`<span class="status-dot dot-err"></span><span class="sync-text">Connection error</span>`; }
+  else { el.innerHTML=`<span class="status-dot dot-loading"></span><span class="sync-text">Saving…</span>`; }
+}
+
+// ── AI EXTRACTION ─────────────────────────────────────
+async function extractFromUrl() {
+  const url = document.getElementById('m-url').value.trim();
+  if (!url || !url.startsWith('http')) { showAiStatus('Please enter a valid URL starting with https://', true); return; }
+  const btn = document.getElementById('extract-btn');
+  btn.disabled = true; btn.textContent = 'Extracting…';
+  showAiStatus('<span class="spinner"></span> Reading website and extracting venue info…');
+  try {
+    const response = await fetch(CONFIG.workerUrl + '/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ venueUrl: url })
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const extracted = await response.json();
+    if (extracted.error) throw new Error(extracted.error);
+    showAiStatus('');
+    populateForm(extracted, url);
+    goToStep2();
+  } catch(e) {
+    showAiStatus('Could not extract info: ' + e.message + ' — fill in manually.', true);
+    btn.disabled = false; btn.textContent = 'Extract with AI';
+  }
+}
+
+function populateForm(data, url) {
+  const fields = ['venueName','town','capacity','onSiteLodging','lodgingInfo','pricePerDay','projectedTotalCost','whatsIncluded'];
+  fields.forEach(f => {
+    const el = document.getElementById('f-' + f);
+    const tag = document.getElementById('tag-' + f);
+    if (!el) return;
+    const val = data[f] !== undefined ? data[f] : '';
+    if (el.tagName === 'SELECT') el.value = val || (f === 'onSiteLodging' ? 'No' : '');
+    else el.value = val;
+    const filled = val && String(val).trim() !== '';
+    el.classList.toggle('ai-filled', filled);
+    if (tag) tag.style.display = filled ? 'inline-block' : 'none';
+  });
+  toggleLodgingInfo();
+  if (url) document.getElementById('venue-url-ref').textContent = url;
+}
+
+function skipToManual() {
+  clearForm();
+  document.getElementById('venue-url-ref').textContent = document.getElementById('m-url').value.trim();
+  goToStep2();
+}
+
+function goToStep2() {
+  document.getElementById('step1').classList.remove('active');
+  document.getElementById('step2').classList.add('active');
+  document.getElementById('modal-title').textContent = modalMode === 'edit' ? 'Edit venue' : 'Verify & save venue';
+  document.getElementById('delete-btn').style.display = modalMode === 'edit' ? 'inline-block' : 'none';
+}
+
+function clearForm() {
+  ['venueName','town','capacity','airportCode','distanceFromAirport','lodgingInfo','pricePerDay','projectedTotalCost','whatsIncluded'].forEach(f => {
+    const el = document.getElementById('f-' + f);
+    if (el) { el.value = ''; el.classList.remove('ai-filled'); }
+    const tag = document.getElementById('tag-' + f);
+    if (tag) tag.style.display = 'none';
+  });
+  document.getElementById('f-onSiteLodging').value = 'No';
+  toggleLodgingInfo();
+}
+
+function showAiStatus(msg, isErr) {
+  const el = document.getElementById('ai-status');
+  el.style.color = isErr ? 'var(--red)' : 'var(--text2)';
+  el.innerHTML = msg;
+}
+
+function toggleLodgingInfo() {
+  document.getElementById('lodging-info-group').style.display =
+    document.getElementById('f-onSiteLodging').value === 'Yes' ? 'flex' : 'none';
+}
+
+// ── MODAL ─────────────────────────────────────────────
+function openAddModal(section) {
+  modalMode = 'add'; editOriginalName = null;
+  document.getElementById('m-section').value = section;
+  document.getElementById('m-status').value = 'Considering';
+  document.getElementById('m-url').value = '';
+  document.getElementById('extract-btn').disabled = false;
+  document.getElementById('extract-btn').textContent = 'Extract with AI';
+  showAiStatus('');
+  clearForm();
+  document.getElementById('venue-url-ref').textContent = '';
+  document.getElementById('step1').classList.add('active');
+  document.getElementById('step2').classList.remove('active');
+  document.getElementById('modal-title').textContent = 'Add venue';
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function openEditModal(venueJson, section) {
+  const venue = JSON.parse(venueJson);
+  modalMode = 'edit'; editOriginalName = venue.venueName;
+  document.getElementById('m-section').value = section;
+  document.getElementById('m-status').value = venue.status || 'Considering';
+  clearForm();
+  ['venueName','town','capacity','airportCode','distanceFromAirport','onSiteLodging','lodgingInfo','pricePerDay','projectedTotalCost','whatsIncluded'].forEach(f => {
+    const el = document.getElementById('f-' + f);
+    if (!el) return;
+    if (el.tagName === 'SELECT') el.value = venue[f] || (f==='onSiteLodging'?'No':'');
+    else el.value = venue[f] || '';
+  });
+  toggleLodgingInfo();
+  document.getElementById('venue-url-ref').textContent = '';
+  document.getElementById('step1').classList.remove('active');
+  document.getElementById('step2').classList.add('active');
+  document.getElementById('modal-title').textContent = 'Edit venue';
+  document.getElementById('delete-btn').style.display = 'inline-block';
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }
+
+// ── SAVE / DELETE ─────────────────────────────────────
+async function saveVenue() {
+  const name = document.getElementById('f-venueName').value.trim();
+  if (!name) { showToast('Venue name is required', true); return; }
+  const section = document.getElementById('m-section').value;
+  const venue = {
+    venueName: name,
+    town: document.getElementById('f-town').value.trim(),
+    capacity: parseFloat(document.getElementById('f-capacity').value) || '',
+    airportCode: document.getElementById('f-airportCode').value.trim(),
+    distanceFromAirport: document.getElementById('f-distanceFromAirport').value.trim(),
+    onSiteLodging: document.getElementById('f-onSiteLodging').value,
+    lodgingInfo: document.getElementById('f-lodgingInfo').value.trim(),
+    pricePerDay: parseFloat(document.getElementById('f-pricePerDay').value) || '',
+    projectedTotalCost: parseFloat(document.getElementById('f-projectedTotalCost').value) || '',
+    whatsIncluded: document.getElementById('f-whatsIncluded').value.trim(),
+    status: document.getElementById('m-status').value,
+  };
+  const saveBtn = document.getElementById('save-btn');
+  saveBtn.textContent = 'Saving…'; saveBtn.disabled = true;
+  setStatus('loading');
+  try {
+    const result = await postData({ action: modalMode==='edit'?'update':'add', section, venue, originalName: editOriginalName });
+    if (!result.success) throw new Error(result.error || 'Unknown error');
+    closeModal();
+    showToast(modalMode==='edit' ? 'Venue updated in Sheet' : 'Venue added to Sheet');
+    await loadData();
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+    setStatus('err');
+  } finally {
+    saveBtn.textContent = 'Save to Sheet'; saveBtn.disabled = false;
+  }
+}
+
+async function confirmDelete() {
+  if (!confirm('Delete "' + editOriginalName + '" from the Sheet?')) return;
+  const section = document.getElementById('m-section').value;
+  setStatus('loading');
+  try {
+    const result = await postData({ action:'delete', section, venue:{venueName:editOriginalName}, originalName:editOriginalName });
+    if (!result.success) throw new Error(result.error||'Unknown error');
+    closeModal(); showToast('Venue deleted'); await loadData();
+  } catch(e) { showToast('Error: '+e.message, true); setStatus('err'); }
+}
+
+// ── RENDER ────────────────────────────────────────────
+function filtered(list) {
+  const q = document.getElementById('search').value.toLowerCase();
+  const fs = document.getElementById('fStatus').value;
+  const fl = document.getElementById('fLodging').value;
+  const sk = document.getElementById('fSort').value;
+  return list.filter(v => {
+    const mq = !q||[v.venueName,v.town,v.airportCode,v.whatsIncluded].some(f=>String(f).toLowerCase().includes(q));
+    const ms = !fs||v.status===fs;
+    const hasL = String(v.onSiteLodging).toLowerCase()==='yes';
+    const ml = !fl||(fl==='Yes'?hasL:!hasL);
+    return mq&&ms&&ml;
+  }).sort((a,b) => {
+    if (sk==='capacity'||sk==='projectedTotalCost') return (parseFloat(b[sk])||0)-(parseFloat(a[sk])||0);
+    return String(a[sk]||'').localeCompare(String(b[sk]||''));
+  });
+}
+
+function fmt(key, val) {
+  if (key==='pricePerDay'||key==='projectedTotalCost') { const n=parseFloat(val); return isNaN(n)||n===0?'—':'$'+n.toLocaleString(); }
+  if (key==='capacity') return val?Number(val).toLocaleString():'—';
+  if (key==='onSiteLodging') { const y=String(val).toLowerCase()==='yes'; return `<span class="badge ${y?'lodge-yes':'lodge-no'}">${y?'Yes':'No'}</span>`; }
+  if (key==='status') return `<span class="badge s-${val||'Considering'}">${val||'—'}</span>`;
+  return val||'—';
+}
+
+function buildTable(theadId, tbodyId, list, section) {
+  document.getElementById(theadId).innerHTML = `<tr>${COLS.map(c=>`<th style="width:${c.w}">${c.label}</th>`).join('')}</tr>`;
+  const tbody = document.getElementById(tbodyId);
+  if (!list.length) { tbody.innerHTML=`<tr><td colspan="${COLS.length}" class="empty">No venues yet — click "+ Add" to get started</td></tr>`; return; }
+  tbody.innerHTML = list.map(v=>`<tr>${COLS.map(c=>{
+    if (c.key==='_actions') return `<td><button class="icon-btn" onclick='openEditModal(${JSON.stringify(JSON.stringify(v))}, "${section}")' title="Edit">✎</button></td>`;
+    return `<td style="${c.align?'text-align:right':''}" title="${String(v[c.key]||'')}">${fmt(c.key,v[c.key])}</td>`;
+  }).join('')}</tr>`).join('');
+}
+
+function renderSummary() {
+  const all = [...allData.domestic,...allData.international];
+  const booked = all.filter(v=>v.status==='Booked').length;
+  const shortlisted = all.filter(v=>v.status==='Shortlisted'||v.status==='Visited').length;
+  const lodging = all.filter(v=>String(v.onSiteLodging).toLowerCase()==='yes').length;
+  const costs = all.map(v=>parseFloat(v.projectedTotalCost)).filter(n=>!isNaN(n)&&n>0);
+  const minCost = costs.length?'$'+Math.min(...costs).toLocaleString():'—';
+  const maxCost = costs.length?'$'+Math.max(...costs).toLocaleString():'—';
+  document.getElementById('summary').innerHTML = `
+    <div class="stat"><div class="lbl">Total venues</div><div class="val">${all.length}</div><div class="sub">${allData.domestic.length} domestic · ${allData.international.length} intl</div></div>
+    <div class="stat"><div class="lbl">Shortlisted / visited</div><div class="val">${shortlisted}</div></div>
+    <div class="stat"><div class="lbl">Booked</div><div class="val">${booked}</div></div>
+    <div class="stat"><div class="lbl">On-site lodging</div><div class="val">${lodging}</div></div>
+    <div class="stat"><div class="lbl">Cost range</div><div class="val" style="font-size:14px;padding-top:4px">${minCost}–${maxCost}</div></div>
+  `;
+}
+
+function render() {
+  const fd=filtered(allData.domestic), fi=filtered(allData.international);
+  document.getElementById('count-d').textContent=fd.length+' venues';
+  document.getElementById('count-i').textContent=fi.length+' venues';
+  buildTable('thead-d','tbody-d',fd,'domestic');
+  buildTable('thead-i','tbody-i',fi,'international');
+  renderSummary();
+}
+
+function showToast(msg, err) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.background=err?'#A32D2D':'#085041'; t.style.color=err?'#FCEBEB':'#E1F5EE';
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+document.getElementById('modal-bg').addEventListener('click', e=>{ if(e.target===document.getElementById('modal-bg')) closeModal(); });
+
+// Auto-load if already authenticated
+if (sessionStorage.getItem('vt_auth') === 'true') loadData();
+</script>
+</body>
+</html>
